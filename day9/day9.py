@@ -1,42 +1,112 @@
-def main():
-    lines = open('input').read().split('\n')
-    res = 0
-    for i in range(0,len(lines)):
-        for j in range(i+1,len(lines)):
-            x1,y1 = lines[i].split(',')
-            x2,y2 = lines[j].split(',')
-            res = max(res, abs(int(x1)-int(x2)+1)*abs(int(y1)-int(y2)+1))
-    return res
+from collections import defaultdict
 
-def no_point_between(p1, p2, points):
-    x1, y1 = p1
-    x3, y3 = p2
-    min_x, max_x = min(x1, x3), max(x1, x3)
-    min_y, max_y = min(y1, y3), max(y1, y3)
+def edge_crosses_rectangle(e1, e2, x1, y1, x2, y2):
+    edgeX1, edgeY1 = e1
+    edgeX2, edgeY2 = e2
+    lowPointX,highPointX = sorted((x1, x2))
+    lowPointY,highPointY = sorted((y1, y2))
 
-    return not any(
-        min_x < x < max_x and min_y < y < max_y
-        for x, y in points
-    )
+    # vertical edge
+    if edgeX1 == edgeX2:
+        if not (lowPointX < edgeX1 < highPointX): # check if the edge is even going through the rectangle
+            return False
+        lowEdgeY, highEdgeY = sorted((edgeY1, edgeY2))
+        overlap_low = max(lowEdgeY, lowPointY)
+        overlap_high = min(highEdgeY, highPointY)
+        return overlap_high > overlap_low
 
-def main2():
-    lines = open('testinput').read().split('\n')
+    # horizontal edge
+    if edgeY1 == edgeY2:
+        if not (lowPointY < edgeY1 < highPointY):
+            return False
+        lowEdgeX, highEdgeX = sorted((edgeX1, edgeX2))
+        overlap_low = max(lowEdgeX, lowPointX)
+        overlap_high = min(highEdgeX, highPointX)
+        return overlap_high > overlap_low
+
+    return False
+
+# check if a given X and Y coordinate are on one of the boundary lines of the points
+def is_on_boundary(x, y, points):
+    n = len(points)
+    for i in range(n):
+        x1, y1 = points[i]
+        x2, y2 = points[(i + 1) % n]
+
+        if x1 == x2 == x and min(y1, y2) <= y <= max(y1, y2) or y1 == y2 == y and min(x1, x2) <= x <= max(x1, x2):
+            return True
+
+    return False
+
+# check if a given X and Y coordinate are either on the boundary lines of the points, or within these boundaries.
+def is_in_body(x, y, points, intersections):
+    if is_on_boundary(x, y, points):
+        return True
+
+    xs = intersections.get(y)
+    if not xs:
+        return False
+
+    inside = False
+
+    # Flip everytime we hit an edge until the edge is further to the right than x is
+    for wx in xs:
+        if x < wx:
+            break
+        inside = not inside
+
+    return inside
+
+
+def main(part1):
+    lines = open('input').read().strip().split('\n')
     points = [tuple(map(int, line.split(','))) for line in lines]
     res = 0
-    for i in range(0,len(points)-1):
-        for j in range(i+2,len(points)-1):
-            x1,y1 = points[i]
-            x2,y2 = points[i+1]
-            x3,y3 = points[j]
-            x4,y4 = points[j+1]
+    intersections = defaultdict(list)
+    n = len(points)
 
-            if (y1 == y2 and x2 == x3 and ((x2 >= x1 >= x4) or (x2 <= x1 <= x4))) or (x1 == x2 and y2 == y3 and ((y2 >= y1 >= y4) or (y2 <= y1 <= y4))):
-                if(no_point_between(points[i],points[j],points)):
-                    res = max(res, (abs(x1-x3)+1)*(abs(y1-y3)+1))
-                    print("Values: " + str([x1,y1]) + " and " + str([x2,y2]) + " and " + str([x3,y3]) + " and "+ str([x4,y4]))
+    # Create intersections map to later quickly test if a point is within the space of the boundaries.
+    # This is done by creating small vertical lines that are later used as indicators for whether a point is "in" or "out"
+    edges = []
+    for i in range(n):
+        x1, y1 = points[i]
+        x2, y2 = points[(i + 1) % n]
 
+        # Store edges for edge intersection detection later
+        edges.append([(x1, y1), (x2, y2)])
+
+        # If it's a vertical line, we include it so we can later scan per line to detect 'in' and 'out'
+        if x1 == x2:
+            ymin, ymax = sorted((y1, y2))
+            for y in range(ymin, ymax):
+                intersections[y].append(x1)
+
+    # Sort the intersections so we can later use them from left to right
+    for y in intersections:
+        intersections[y].sort()
+
+    for i in range(n-1):
+        x1,y1 = points[i]
+        for j in range(i+1,n):
+            x2,y2 = points[j]
+
+            # If part 1:
+            if(part1):
+                res = max(res, (abs(int(x1)-int(x2))+1)*(abs(int(y1)-int(y2))+1))
+            else:
+
+                # If part 2:
+                # For each two points test if:
+                # - Are the two other points either on the boundary, or within the body?
+                # - Is the subsequent rectangle not intersected by any other edges?
+                if is_in_body(x1,y2, points,intersections) and is_in_body(x2,y1,points,intersections):
+                    for edge in edges:
+                        edgeX, edgeY = edge
+                        if(edge_crosses_rectangle(edgeX,edgeY,x1,y1,x2,y2)):
+                            break
+                    else:
+                        res = max(res, (abs(int(x1)-int(x2))+1)*(abs(int(y1)-int(y2))+1))
     return res
 
-
-print(main())
-print(main2())
+print(main(True))
+print(main(False))
